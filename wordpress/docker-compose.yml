@@ -1,0 +1,165 @@
+version: "3.9"
+
+# ============================================================
+#  WordPress + MariaDB — Production-Ready Setup
+#  Delivered by: Malchiel | Kubernetes Consulting
+# ============================================================
+#
+#  QUICK START:
+#    1. Copy this file to a folder on your server
+#    2. Create a .env file (see .env.example below)
+#    3. Run: docker compose up -d
+#    4. Visit http://your-server-ip to complete WordPress setup
+#
+#  WHAT'S INCLUDED:
+#    - WordPress (latest, PHP 8.x)
+#    - MariaDB 10.11 (stable LTS)
+#    - Persistent storage for database and uploads
+#    - Automatic restart on crash
+#    - Health checks on both services
+#    - Isolated internal network
+#
+# ============================================================
+
+services:
+
+  # ----------------------------------------------------------
+  #  DATABASE — MariaDB 10.11 LTS
+  # ----------------------------------------------------------
+  db:
+    image: mariadb:10.11
+    container_name: wordpress_db
+    restart: unless-stopped
+
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-wordpress}
+      MYSQL_USER: ${MYSQL_USER:-wordpress}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+
+    volumes:
+      # Persistent database storage — survives container restarts and updates
+      - db_data:/var/lib/mysql
+
+    networks:
+      - wordpress_net
+
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ----------------------------------------------------------
+  #  APPLICATION — WordPress (latest)
+  # ----------------------------------------------------------
+  wordpress:
+    image: wordpress:latest
+    container_name: wordpress_app
+    restart: unless-stopped
+
+    # Wait for DB to be healthy before starting
+    depends_on:
+      db:
+        condition: service_healthy
+
+    ports:
+      # Change the left number to use a different host port
+      # e.g. "8080:80" to access on port 8080
+      - "${WORDPRESS_PORT:-80}:80"
+
+    environment:
+      WORDPRESS_DB_HOST: db:3306
+      WORDPRESS_DB_NAME: ${MYSQL_DATABASE:-wordpress}
+      WORDPRESS_DB_USER: ${MYSQL_USER:-wordpress}
+      WORDPRESS_DB_PASSWORD: ${MYSQL_PASSWORD}
+
+      # Security keys — replace these with unique values from:
+      # https://api.wordpress.org/secret-key/1.1/salt/
+      WORDPRESS_AUTH_KEY:         ${WP_AUTH_KEY:-changeme-auth-key}
+      WORDPRESS_SECURE_AUTH_KEY:  ${WP_SECURE_AUTH_KEY:-changeme-secure-auth-key}
+      WORDPRESS_LOGGED_IN_KEY:    ${WP_LOGGED_IN_KEY:-changeme-logged-in-key}
+      WORDPRESS_NONCE_KEY:        ${WP_NONCE_KEY:-changeme-nonce-key}
+      WORDPRESS_AUTH_SALT:        ${WP_AUTH_SALT:-changeme-auth-salt}
+      WORDPRESS_SECURE_AUTH_SALT: ${WP_SECURE_AUTH_SALT:-changeme-secure-auth-salt}
+      WORDPRESS_LOGGED_IN_SALT:   ${WP_LOGGED_IN_SALT:-changeme-logged-in-salt}
+      WORDPRESS_NONCE_SALT:       ${WP_NONCE_SALT:-changeme-nonce-salt}
+
+      # Max upload size (increase if you upload large images/videos)
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_MEMORY_LIMIT', '256M');
+        define('FS_METHOD', 'direct');
+
+    volumes:
+      # Persistent storage for themes, plugins, and uploaded media
+      - wp_data:/var/www/html
+
+    networks:
+      - wordpress_net
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/wp-login.php"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+# ----------------------------------------------------------
+#  VOLUMES — Persistent data survives container rebuilds
+# ----------------------------------------------------------
+volumes:
+  db_data:
+    driver: local
+  wp_data:
+    driver: local
+
+# ----------------------------------------------------------
+#  NETWORK — Isolated bridge network (DB not exposed)
+# ----------------------------------------------------------
+networks:
+  wordpress_net:
+    driver: bridge
+
+# ============================================================
+#
+#  .env FILE (create this in the same folder):
+#
+#  MYSQL_ROOT_PASSWORD=your_strong_root_password_here
+#  MYSQL_DATABASE=wordpress
+#  MYSQL_USER=wordpress
+#  MYSQL_PASSWORD=your_strong_db_password_here
+#  WORDPRESS_PORT=80
+#
+#  # Optional — get unique keys from:
+#  # https://api.wordpress.org/secret-key/1.1/salt/
+#  WP_AUTH_KEY=
+#  WP_SECURE_AUTH_KEY=
+#  WP_LOGGED_IN_KEY=
+#  WP_NONCE_KEY=
+#  WP_AUTH_SALT=
+#  WP_SECURE_AUTH_SALT=
+#  WP_LOGGED_IN_SALT=
+#  WP_NONCE_SALT=
+#
+# ============================================================
+#
+#  USEFUL COMMANDS:
+#
+#  Start:          docker compose up -d
+#  Stop:           docker compose down
+#  View logs:      docker compose logs -f
+#  Restart WP:     docker compose restart wordpress
+#  Update images:  docker compose pull && docker compose up -d
+#
+#  BACKUP DATABASE:
+#    docker exec wordpress_db sh -c \
+#      'mysqldump -u root -p"$MYSQL_ROOT_PASSWORD" wordpress' \
+#      > backup_$(date +%Y%m%d).sql
+#
+#  RESTORE DATABASE:
+#    docker exec -i wordpress_db sh -c \
+#      'mysql -u root -p"$MYSQL_ROOT_PASSWORD" wordpress' \
+#      < backup.sql
+#
+# ============================================================
