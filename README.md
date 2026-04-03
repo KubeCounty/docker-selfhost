@@ -154,4 +154,4 @@ Running these at scale? The Kubernetes equivalents of these stacks live in [`kub
 ---
 
 *Built by [KubeCounty](https://tiktok.com/@kubecounty) — Kubernetes Infrastructure Consulting*  
-*Found this useful? Follow on [TikTok](https://tiktok.com/@kubecounty) or [LinkedIn](https://linkedin.com/company/kubecounty)*
+*Found this useful? Follow on [TikTok](https://www.tiktok.com/@malchielurias) or [LinkedIn](https://www.linkedin.com/in/malchiel-urias/)*
